@@ -652,3 +652,22 @@ def reconnaitre_mot(mot, af):
             return False
 
     return any(state in af["finals"] for state in current_states)
+
+def automate_complementaire(A, source="AFDC"):
+    # Construction de l'automate du langage complémentaire
+    # On échange simplement les états finaux et non-finaux
+    print(f"\n=> Construction de l'automate complémentaire à partir de l'{source}.")
+
+    # Les états finaux du complémentaire sont les NON-finaux de A
+    nouveaux_finals = [e for e in A["etats"] if e not in A["finals"]]
+
+    AComp = {
+        "alphabet": list(A["alphabet"]),
+        "etats": list(A["etats"]),
+        "initials": list(A["initials"]),
+        "finals": nouveaux_finals,
+        "transitions": [dict(t) for t in A["transitions"]]
+    }
+
+    print("=> Automate complémentaire construit (échange états finaux <-> non-finaux).")
+    return AComp

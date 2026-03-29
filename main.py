@@ -1,124 +1,173 @@
 import fonction
-from fonction import lire_automate, non_standard, standardisation, lire_lignes, lire_mot, reconnaitre_mot, \
-    determinisation_completion_automate, minimiser_automate, obtenir_index_classe, afficher_transitions_classes, \
-    sont_equivalents
+from fonction import (
+    lire_automate, non_standard, standardisation, lire_lignes, lire_mot,
+    reconnaitre_mot, determinisation_completion_automate, minimiser_automate,
+    obtenir_index_classe, afficher_transitions_classes, sont_equivalents,
+    automate_complementaire
+)
+
+# Liste de tous les numéros d'automates acceptés (de 01 à 44)
+CHOIX_VALIDES = [f"{i:02d}" for i in range(1, 45)]
+
+
+def choisir_automate():
+    # On répète la question tant que l'utilisateur ne donne pas un numéro valide
+    while True:
+        choix = input("\nQuel automate voulez-vous utiliser ? (01 à 44, ou 'quitter') : ").strip()
+        if choix.lower() == 'quitter':
+            return None
+        if choix in CHOIX_VALIDES:
+            print(f"Automate {choix} sélectionné.")
+            return choix
+        print("Numéro invalide. Entrez un nombre entre 01 et 44.")
+
+
+def traiter_automate(choix):
+    # Fonction principale qui enchaîne toutes les étapes de traitement
+
+
+    # Étape 1 : chargement de l'automate depuis le fichier et affichage
+
+    af = lire_automate(choix)
+    if af is None:
+        print("\nImpossible de lire l'automate. Traitement annulé.")
+        return
+
+    print("\n=== AUTOMATE INITIAL ===")
+    fonction.afficher_automate(af)
+
+    # Étape 2 : si l'automate contient des transitions epsilon (z),
+    # on propose à l'utilisateur de le synchroniser
+    if fonction.est_asynchrone(af):
+        rep = input("Voulez-vous synchroniser l'automate ? (oui/non) : ").strip().lower()
+        if rep == "oui":
+            print("\nSynchronisation en cours :")
+            af = fonction.synchronisation(af)
+            print("\n=== AUTOMATE SYNCHRONISE ===")
+            fonction.afficher_automate(af)
+        else:
+            # Sans synchronisation on ne peut pas aller plus loin
+            print("\nTraitement impossible sur un automate asynchrone non synchronisé. Arrêt.")
+            return
+
+
+    # Étape 3 : on vérifie si l'automate est déterministe et/ou complet
+
+    print("\n--- Analyse de l'automate ---")
+    det = fonction.est_deterministe(af)
+    comp = fonction.est_complet(af)
+
+
+    # Étape 4 : standardisation à la demande de l'utilisateur
+
+    lignes = lire_lignes(choix)
+    rep = input("\nVoulez-vous standardiser l'automate ? (oui/non) : ").strip().lower()
+    if rep == "oui":
+        if non_standard(choix, lignes):
+            # On demande une confirmation avant de modifier
+            rep2 = input(f"L'automate {choix} n'est pas standard. Lancer la standardisation ? (oui/non) : ").strip().lower()
+            if rep2 == "oui":
+                resultat = standardisation(choix, lignes)
+                print(f"\nFichier standardisé enregistré : {resultat}")
+        else:
+            print(f"\nL'automate {choix} est déjà standard, aucune modification nécessaire.")
+
+
+    # Étape 5 : déterminisation et complétion
+    # On suit le pseudo-code du sujet à la lettre
+
+    AFDC = af  # valeur par défaut si l'utilisateur refuse
+
+    rep = input("\nVoulez-vous déterminiser et compléter l'automate ? (oui/non) : ").strip().lower()
+    if rep == "oui":
+        print("\nConstruction de l'AFDC :")
+        if det:
+            if comp:
+                # Déjà déterministe et complet : rien à faire
+                AFDC = af
+                print("=> L'automate est déjà déterministe et complet.")
+            else:
+                # Déterministe mais pas complet : on ajoute juste l'état poubelle
+                AFDC = fonction.completion(af)
+        else:
+            # Non déterministe : déterminisation + complétion complètes
+            AFDC = fonction.determinisation_completion_automate(af)
+
+        print("\n=== AUTOMATE DETERMINISTE ET COMPLET (AFDC) ===")
+        fonction.afficher_automate(AFDC)
+    else:
+        # Si l'utilisateur refuse mais que l'automate n'est pas AFDC,
+        # on le calcule quand même en arrière-plan pour les étapes suivantes
+        if not (det and comp):
+            print("\nATTENTION : l'automate n'est pas déterministe et complet.")
+            print("Calcul de l'AFDC en arrière-plan pour pouvoir continuer ...")
+            if det:
+                AFDC = fonction.completion(af)
+            else:
+                AFDC = fonction.determinisation_completion_automate(af)
+            print("\n=== AFDC (calculé automatiquement) ===")
+            fonction.afficher_automate(AFDC)
+
+
+    # Étape 6 : minimisation de l'AFDC
+
+    AFDCM = AFDC  # on part de l'AFDC par défaut
+
+    rep = input("\nVoulez-vous minimiser l'automate ? (oui/non) : ").strip().lower()
+    if rep == "oui":
+        # La minimisation n'est applicable que sur un automate déterministe et complet
+        if fonction.est_deterministe(AFDC) and fonction.est_complet(AFDC):
+            AFDCM = fonction.minimiser_automate(AFDC)
+        else:
+            print("\nLa minimisation nécessite un automate déterministe et complet.")
+
+
+    # Étape 7 : test de reconnaissance de mots
+    #On boucle jusqu'à ce que l'utilisateur tape "fin"
+
+    print("\n--- Test de mots (entrez 'fin' pour quitter cette section) ---")
+    automate_recog = AFDCM  # on utilise l'automate le plus réduit disponible
+    mot = input("Entrez un mot à tester : ").strip()
+    while lire_mot(mot) == 0:  # lire_mot retourne 0 si le mot n'est pas "fin"
+        if reconnaitre_mot(mot, automate_recog):
+            print("=> Ce mot est ACCEPTÉ par l'automate.")
+        else:
+            print("=> Ce mot est REJETÉ par l'automate.")
+        mot = input("Mot suivant (ou 'fin' pour arrêter) : ").strip()
+
+
+    # Étape 8 : construction de l'automate du langage complémentaire
+
+    rep = input("\nVoulez-vous obtenir l'automate du langage complémentaire ? (oui/non) : ").strip().lower()
+    if rep == "oui":
+        # On indique clairement depuis quel automate le complémentaire est construit
+        source_label = "AFDCM" if AFDCM is not AFDC else "AFDC"
+        AComp = automate_complementaire(AFDCM, source=source_label)
+        print(f"\n=== AUTOMATE COMPLEMENTAIRE (construit depuis {source_label}) ===")
+        fonction.afficher_automate(AComp)
 
 
 def main():
-    flag = 0
-    print("\nBienvenue dans le programme d'automate !")
-    while flag == 0:
-        choix = input("Veuillez choisir un automate (entre 01 et 44): ")
-        if choix in ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10',
-                     '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
-                     '21', '22', '23', '24', '25', '26', '27', '28', '29', '30',
-                     '31', '32', '33', '34', '35', '36', '37', '38', '39', '40',
-                     '41', '42', '43', '44']:
-            print(f"Vous avez choisi l'automate {choix}.")
-            flag = 1
-        else:
+    print("\n=====================================================")
+    print("   Bienvenue dans le programme d'automates finis")
+    print("=====================================================")
 
-            print("\nChoix invalide. Veuillez choisir un nombre entre 01 et 44.")
-    # dmd quelle automate at-elle choisie et faire les differentes fonctions
-    af = lire_automate(choix)
-    # si automate en erreur on sort du programme
-    if (af == None):
-        print("\nAutomate non lisible")
-        return
-    fonction.afficher_automate(af)
-    flag = 0
-    if fonction.est_asynchrone(af):
-        while flag == 0:
-            synchroniser = input("Voulez-vous synchroniser l'automate ? (oui/non) ")
-            if synchroniser == "oui":
-                print("\nCalcul de l'automate synchrone")
-                af = fonction.synchronisation(af)
-                fonction.afficher_automate(af)
-                flag = 1
-            if synchroniser == "non":
-                print("\nNous ne pouvons pas faire d'autre manipulation sur l'automate choisi")
+    # On tourne en boucle pour permettre de traiter plusieurs automates
+    # sans avoir à relancer le programme
+    while True:
+        choix = choisir_automate()
+        if choix is None:
+            # L'utilisateur a tapé "quitter"
+            print("\nFin du programme. À bientôt !")
+            break
 
-    if fonction.est_deterministe(af):
-        if fonction.est_complet(af):
-            print("")
+        traiter_automate(choix)
 
-    AFDC = af
-    determiniser_completer = input("Voulez-vous determiniser et completer l'automate ? (oui/non) ")
-    if determiniser_completer.lower() == "oui":
-        if determiniser_completer == "oui":
-
-            print("\nCalcul AFDC")
-            if fonction.est_deterministe(af):
-                if fonction.est_complet(af):
-                    AFDC = af
-                else:
-                    AFDC = fonction.completion(af)
-
-            else:
-                AFDC = fonction.determinisation_completion_automate(af)
-
-    fonction.afficher_automate(af)
-    af = AFDC
-
-    minimisei_automate = input("\nVoulez-vous minimiser l'automate ? (oui/non) ")
-    if minimisei_automate.lower() == "oui":
-        if fonction.est_deterministe(af) and fonction.est_complet(af):
-            afdcm = fonction.minimiser_automate(AFDC)
-
-            af = afdcm
-        else:
-            print("\nL'automate doit être déterministe et complet pour être minimisé.")
-
-    '''
-    print("Calcul AFDC")
-
-    fonction.determiniser_completer_automate(af)
-
-    if fonction.est_deterministe(af):
-        if fonction.est_complet(af):
-            AFDC = af
-        else:
-            AFDC = fonction.completion(af)
-    else:
-        AFDC = fonction.determiniser_completer_automate(af)
-
-    fonction.afficher_automate_deterministe_complet(AFDC)
-    '''
-
-    lignes = lire_lignes(choix)
-    standardiser = input("\nVoulez-vous standardiser l'automate ? (oui/non) ")
-    if standardiser.lower() == "oui":
-        if non_standard(choix, lignes):
-            # Demander à l'utilisateur s'il veut standardiser
-            reponse = input(f"Voulez-vous standardiser l'automate {choix} ? (oui/non) : ").strip().lower()
-            if reponse == "oui":
-                SFA = standardisation(choix, lignes)
-
-                print(f"L'automate {choix} a été standardisé.")
-                # Si tu veux, tu peux afficher le nouvel automate
-
-                print("\nNouvel automate standardisé :")
-                print("".join(SFA))
-            else:
-
-                print(f"L'automate {choix} reste non-standard.")
-        else:
-
-            print(f"L'automate {choix} est déjà standard.")
-
-    mot = input("\nEntrer un mot : ")
-    while not lire_mot(mot):
-        if reconnaitre_mot(mot, af):
-            print("\nMot reconnu.")
-        else:
-            print("\nMot non reconnu.")
-        mot = input("\nEntrer un nouveau mot ou finir en écrivant fin : ")
-
-
-#    fonction.est_un_automate_deterministe(af)
-#    fonction.est_un_automate_complet(af)
-#    af_complet = fonction.completion(af)
-#    fonction.afficher_automate(af_complet)
+        # On demande si l'utilisateur veut continuer avec un autre automate
+        continuer = input("\nTraiter un autre automate ? (oui/non) : ").strip().lower()
+        if continuer != "oui":
+            print("\nFin du programme. À bientôt !")
+            break
 
 
 if __name__ == "__main__":
