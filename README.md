@@ -18,6 +18,6 @@ Le programme peut traiter plusieurs automates à la suite sans avoir à être re
 - **Reconnaissance de mots** — test de plusieurs mots pour savoir s'ils sont acceptés ou non par l'automate
 - **Langage complémentaire** — construction de l'automate reconnaissant le langage complémentaire
 
-## Auteurs
+## Mathis Roca Alexis Rajabally
 
-Projet réalisé en équipe dans le cadre du cours d'Automates Finis — EFREI P2 2025/2026.
+Projet réalisé en équipe dans le cadre du projet d'Automates Finis — EFREI P2 2025/2026.
